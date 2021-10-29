@@ -67,45 +67,52 @@ try{
             var lastReturnPos = stringData.indexOf('\r', lastAtPos);
 
             var splitData = stringData.substring(0, lastReturnPos).split("\r"); // Split the data at the \r char but only for the piece of the string that contains @ symbols.
-
-            splitData.forEach(dataItem => {
-                //IF the current line includes: "To", "CC", "BCC", "From", or "<" and ">" then check if we've got an email on that line.
-                if (dataItem.includes('To:') || dataItem.includes('CC:') || dataItem.includes('BCC:') || dataItem.includes('From:') || (dataItem.includes('<') && dataItem.includes('>'))) {
-                    if (dataItem.includes('@')) {
-                        emailAddress = extractEmail(dataItem);
-                        if(emailAddress != ''){
-                            try{
-                                Addresses.push(emailAddress); // Add the email address to the Addresses[] array
-                                Addresses = DeDupeArray(Addresses); // Deduplicate and sort the Addresses[] array
-                                var currentTime = new Date();
-                                var elapsedTime = new Date (currentTime.getTime() - startTimestamp.getTime() -  1*60*60*1000); // Minus 1 hour because it seems to add one on
-                                elapsedTimeFormatted = elapsedTime.toLocaleTimeString();
-
-                                console.clear(); //Clear and update the console with the current progress.
-                                console.log('Time elapsed       ' + elapsedTimeFormatted);
-                                console.log('Address count      ' + Addresses.length);
-                                console.log('Folders            ' + folderCount + ' of  ' + totalFolderCount +' (' + Math.round(folderPercentage) +'%)');
-                                console.log('Current folder     ' + fileCount + '   of  ' + totalFileCount + ' files in folder ' + folderCount);
-                                console.log('Read lines         ' + totalLineCount);
-                                console.log('Current file       ' + lineCount + '   of  ' + splitData.length + ' lines');
-                                if((Addresses.length % 250) === 0){ // If multiple of 250
-                                    ExportArray(Addresses); // Export the email addresses gathered to the text file.
+            
+            // Creating recursive function to trim down the file so that we only loop from the start of the file to the last line that has a valid email address.
+            // var splitData = TrimFile(stringData);
+            
+            if(splitData != undefined){
+                splitData.forEach(dataItem => {
+                    //IF the current line includes: "To", "CC", "BCC", "From", or "<" and ">" then check if we've got an email on that line.
+                    if (dataItem.includes('To:') || dataItem.includes('CC:') || dataItem.includes('BCC:') || dataItem.includes('From:') || (dataItem.includes('<') && dataItem.includes('>'))) {
+                        if (dataItem.includes('@')) {
+                            emailAddress = extractEmail(dataItem);
+                            if(emailAddress != ''){
+                                try{
+                                    Addresses.push(emailAddress); // Add the email address to the Addresses[] array
+                                    Addresses = DeDupeArray(Addresses); // Deduplicate and sort the Addresses[] array
+                                    var currentTime = new Date();
+                                    var elapsedTime = new Date (currentTime.getTime() - startTimestamp.getTime() -  1*60*60*1000); // Minus 1 hour because it seems to add one on
+                                    elapsedTimeFormatted = elapsedTime.toLocaleTimeString();
+    
+                                    console.clear(); //Clear and update the console with the current progress.
+                                    console.log('Time elapsed       ' + elapsedTimeFormatted);
+                                    console.log('Address count      ' + Addresses.length);
+                                    console.log('Folders            ' + folderCount + ' of  ' + totalFolderCount +' (' + Math.round(folderPercentage) +'%)');
+                                    console.log('Current folder     ' + fileCount + '   of  ' + totalFileCount + ' files in folder ' + folderCount);
+                                    console.log('Read lines         ' + totalLineCount);
+                                    console.log('Current file       ' + lineCount + '   of  ' + splitData.length + ' lines');
+                                    if((Addresses.length % 250) === 0){ // If multiple of 250
+                                        ExportArray(Addresses); // Export the email addresses gathered to the text file.
+                                    }
+                                    
+                                }catch(e){
+                                    console.error(e); // Error
                                 }
-                                
-                            }catch(e){
-                                console.error(e); // Error
                             }
                         }
                     }
-                }
-                
-                // Increment the counter
-                lineCount++;
-                if(lineCount === splitData.length){
-                    totalLineCount += splitData.length;
-                }
-
-            });
+                    
+                    // Increment the counter
+                    lineCount++;
+                    if(lineCount === splitData.length){
+                        totalLineCount += splitData.length;
+                    }
+    
+                });
+            }else{
+                console.log(stringData);
+            }
         });
     });
 } catch(e){
@@ -152,7 +159,7 @@ function ExportArray(array){
 }
 
 function OmitAddressYN(emailPrefix){
-    OmittedAddresses.forEach( prefix => {
+    OmittedAddresses.forEach( prefix => { 
         var containsPrefix = emailPrefix.includes(prefix);
         if(containsPrefix){
             return true;
@@ -167,5 +174,30 @@ function DeDupeArray(array){
         return deDuplicated.sort();
     }catch{
         console.error('Error deduplicating array.');
+    }
+}
+
+function TrimFile(data){ // Function to trim the tail end off of large files.
+    try{
+        var lastAtPos = data.lastIndexOf('@');              // Find the position of the last @ symbol.
+        var lastReturnPos = data.indexOf('\r', lastAtPos);  // The position of the next closest \r after the last @ symbol
+        if (lastReturnPos < lastAtPos){ 
+            var splitData = data.split("\r"); // If there was no \r after that then we need can just split it 
+        }else{
+            var splitData = data.substring(0, lastReturnPos).split("\r"); // Otherwise split it but only for the part of the string we want.
+        }
+        var lastItem = splitData[splitData.length - 1]; // Get the last item in the array
+        var email = extractEmail(lastItem); // Check if it contains an email address
+        if(email === undefined && !validEmailTest.test(email)){ 
+            splitData.pop(); // If it doesn't then remove the last item in the array
+            data = splitData.join('\r'); // Rejoin the data.
+            var result = TrimFile(data); // Run the process again on the now smaller string.
+            return result; // Return the result.
+        }else{
+            return splitData; //Returns the result to 'result'
+        }
+    }catch(e){
+        console.error('Error trimming file.\n' + e)
+        return data;
     }
 }
