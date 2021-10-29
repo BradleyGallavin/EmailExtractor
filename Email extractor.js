@@ -82,7 +82,7 @@ try{
                                 elapsedTimeFormatted = elapsedTime.toLocaleTimeString();
 
                                 console.clear(); //Clear and update the console with the current progress.
-                                console.log('Time elapsed       ' + startTimestamp.getUTCDate() + ' (' + elapsedTimeFormatted + ')');
+                                console.log('Time elapsed       ' + elapsedTimeFormatted);
                                 console.log('Address count      ' + Addresses.length);
                                 console.log('Folders            ' + folderCount + ' of  ' + totalFolderCount +' (' + Math.round(folderPercentage) +'%)');
                                 console.log('Current folder     ' + fileCount + '   of  ' + totalFileCount + ' files in folder ' + folderCount);
@@ -131,10 +131,10 @@ function extractEmail(string){
             return emailAddress; // If the email is a valid email and is not a UUID then return the address.
         }
         else{
-            return; // Error validating email.
+            return;     // Error validating email.
         }
     }catch{
-        return; // Error extracting email.
+        return;         // Error extracting email.
     }
 }
 
