@@ -41,7 +41,7 @@ folders.shift(); // Remove the first folder name because it's a fodler we're not
 
 var totalFolderCount = folders.length;  // The total number of folders that need to be searched through.
 var folderCount = 0;                    // The current folder being worked on.
-var totalLineCount = 0;
+var totalLineCount = 0; //adding a comment to test git
 
 try{
     folders.forEach(folderName => {
