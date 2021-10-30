@@ -39,8 +39,6 @@ catch{
 
 folders.shift(); // Remove the first folder name because it's a fodler we're not interested in.
 folders = DeDupeArray(folders); //Sort the array
-console.groupCollapsed(folders); //Print all the folder names
-console.groupEnd()
 
 var totalFolderCount = folders.length;  // The total number of folders that need to be searched through.
 var folderCount = 0;                    // The current folder being worked on.
@@ -61,11 +59,13 @@ try{
         var currentTime = new Date();
         var elapsedTime = new Date (currentTime.getTime() - startTimestamp.getTime() -  1*60*60*1000); // Minus 1 hour because it seems to add one on
         elapsedTimeFormatted = elapsedTime.toLocaleTimeString();
+
         console.groupCollapsed('Progress    ' + Math.round(folderPercentage) +'%' + '    |     Address count      ' + Addresses.length + '   |   Time elapsed       ' + elapsedTimeFormatted );
         console.group('Folder   ' + folderName + ' (' + totalFileCount + ' files)');
-        
 
         files.forEach(fileName => {
+            
+            var AddressBefore = Addresses.length;
             console.group('File    ' + fileName);
         
             var filePath = folderPath + fileName;
@@ -83,11 +83,10 @@ try{
                 var lastReturnPos = stringData.indexOf('\r', lastAtPos);
                 var splitData = stringData.substring(0, lastReturnPos).split("\r"); // Split the data at the \r char but only for the piece of the string that contains @ symbols.
             //} 
-            // console.groupCollapsed('Folder      ' + folderCount + ' of  ' + totalFolderCount);
 
 
             
-            //console.clear(); //Clear and update the console with the current progress.
+            
             if(splitData != undefined){
                 splitData.forEach(dataItem => {
                     //IF the current line includes: "To", "CC", "BCC", "From", or "<" and ">" then check if we've got an email on that line.
@@ -98,8 +97,6 @@ try{
                                 try{
                                     Addresses.push(emailAddress); // Add the email address to the Addresses[] array
                                     Addresses = DeDupeArray(Addresses); // Deduplicate and sort the Addresses[] array
-                                    
-                                    console.log('Added              ' + emailAddress);
                                     if((Addresses.length % 250) === 0){ // If multiple of 250
                                         ExportArray(Addresses); // Export the email addresses gathered to the text file.
                                     }
@@ -117,9 +114,8 @@ try{
             }else{
                 console.log(stringData);
             }
-            
-            //console.groupEnd();
-            //console.groupEnd();
+            var addressesAddedThisFile = Addresses.length - AddressBefore;
+            if(addressesAddedThisFile > 0) console.log('Found ' + (Addresses.length - AddressBefore) + ' new email addresses');
             console.groupEnd();
         });
         console.groupEnd();
