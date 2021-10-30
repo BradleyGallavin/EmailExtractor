@@ -38,6 +38,9 @@ catch{
 }
 
 folders.shift(); // Remove the first folder name because it's a fodler we're not interested in.
+folders = DeDupeArray(folders); //Sort the array
+console.groupCollapsed(folders); //Print all the folder names
+console.groupEnd()
 
 var totalFolderCount = folders.length;  // The total number of folders that need to be searched through.
 var folderCount = 0;                    // The current folder being worked on.
@@ -45,17 +48,26 @@ var totalLineCount = 0;
 
 try{
     folders.forEach(folderName => {
-
         var folderPath = parentPath + folderName + '/';
         folderCount++;
         var folderPercentage = (folderCount/totalFolderCount)*100;
+
+        
         
         var files = fs.readdirSync(folderPath);
         var totalFileCount = files.length;
         var fileCount = 0;
 
+        var currentTime = new Date();
+        var elapsedTime = new Date (currentTime.getTime() - startTimestamp.getTime() -  1*60*60*1000); // Minus 1 hour because it seems to add one on
+        elapsedTimeFormatted = elapsedTime.toLocaleTimeString();
+        console.groupCollapsed('Progress    ' + Math.round(folderPercentage) +'%' + '    |     Address count      ' + Addresses.length + '   |   Time elapsed       ' + elapsedTimeFormatted );
+        console.group('Folder   ' + folderName + ' (' + totalFileCount + ' files)');
+        
+
         files.forEach(fileName => {
-            
+            console.group('File    ' + fileName);
+        
             var filePath = folderPath + fileName;
             fileCount++;
             fileData = fs.readFileSync(filePath);
@@ -63,35 +75,31 @@ try{
 
             var stringData = fileData.toString();
             var lineCount = 0;
-            var lastAtPos = stringData.lastIndexOf('@');
-            var lastReturnPos = stringData.indexOf('\r', lastAtPos);
 
-            var splitData = stringData.substring(0, lastReturnPos).split("\r"); // Split the data at the \r char but only for the piece of the string that contains @ symbols.
-            
             // Creating recursive function to trim down the file so that we only loop from the start of the file to the last line that has a valid email address.
-            // var splitData = TrimFile(stringData);
+            //var splitData = TrimFile(stringData);
+            //if(splitData == undefined){
+                var lastAtPos = stringData.lastIndexOf('@');
+                var lastReturnPos = stringData.indexOf('\r', lastAtPos);
+                var splitData = stringData.substring(0, lastReturnPos).split("\r"); // Split the data at the \r char but only for the piece of the string that contains @ symbols.
+            //} 
+            // console.groupCollapsed('Folder      ' + folderCount + ' of  ' + totalFolderCount);
+
+
             
+            //console.clear(); //Clear and update the console with the current progress.
             if(splitData != undefined){
                 splitData.forEach(dataItem => {
                     //IF the current line includes: "To", "CC", "BCC", "From", or "<" and ">" then check if we've got an email on that line.
                     if (dataItem.includes('To:') || dataItem.includes('CC:') || dataItem.includes('BCC:') || dataItem.includes('From:') || (dataItem.includes('<') && dataItem.includes('>'))) {
                         if (dataItem.includes('@')) {
                             emailAddress = extractEmail(dataItem);
-                            if(emailAddress != ''){
+                            if(emailAddress != undefined){
                                 try{
                                     Addresses.push(emailAddress); // Add the email address to the Addresses[] array
                                     Addresses = DeDupeArray(Addresses); // Deduplicate and sort the Addresses[] array
-                                    var currentTime = new Date();
-                                    var elapsedTime = new Date (currentTime.getTime() - startTimestamp.getTime() -  1*60*60*1000); // Minus 1 hour because it seems to add one on
-                                    elapsedTimeFormatted = elapsedTime.toLocaleTimeString();
-    
-                                    console.clear(); //Clear and update the console with the current progress.
-                                    console.log('Time elapsed       ' + elapsedTimeFormatted);
-                                    console.log('Address count      ' + Addresses.length);
-                                    console.log('Folders            ' + folderCount + ' of  ' + totalFolderCount +' (' + Math.round(folderPercentage) +'%)');
-                                    console.log('Current folder     ' + fileCount + '   of  ' + totalFileCount + ' files in folder ' + folderCount);
-                                    console.log('Read lines         ' + totalLineCount);
-                                    console.log('Current file       ' + lineCount + '   of  ' + splitData.length + ' lines');
+                                    
+                                    console.log('Added              ' + emailAddress);
                                     if((Addresses.length % 250) === 0){ // If multiple of 250
                                         ExportArray(Addresses); // Export the email addresses gathered to the text file.
                                     }
@@ -105,15 +113,18 @@ try{
                     
                     // Increment the counter
                     lineCount++;
-                    if(lineCount === splitData.length){
-                        totalLineCount += splitData.length;
-                    }
-    
                 });
             }else{
                 console.log(stringData);
             }
+            
+            //console.groupEnd();
+            //console.groupEnd();
+            console.groupEnd();
         });
+        console.groupEnd();
+        console.groupEnd();
+
     });
 } catch(e){
     console.error('There was an error reading the files.\n' + e ); // Catch it incase it stops for any reason.
@@ -186,6 +197,7 @@ function TrimFile(data){ // Function to trim the tail end off of large files.
         }else{
             var splitData = data.substring(0, lastReturnPos).split("\r"); // Otherwise split it but only for the part of the string we want.
         }
+
         var lastItem = splitData[splitData.length - 1]; // Get the last item in the array
         var email = extractEmail(lastItem); // Check if it contains an email address
         if(email === undefined && !validEmailTest.test(email)){ 
@@ -198,6 +210,9 @@ function TrimFile(data){ // Function to trim the tail end off of large files.
         }
     }catch(e){
         console.error('Error trimming file.\n' + e)
-        return data;
+        console.groupCollapsed('data = ' + data);
+        console.groupCollapsed('splitData = ' + splitData);
+        console.groupCollapsed('result = ' + result);
+        return;
     }
 }
