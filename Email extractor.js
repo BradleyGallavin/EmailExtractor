@@ -76,13 +76,19 @@ try{
             var stringData = fileData.toString();
             var lineCount = 0;
 
+            if(fileName == '002E8B72-CFEF-4D4D-AEDC-88B3634792FD.olk15MsgSource'){
+                console.log('error?');
+            }
+
             // Creating recursive function to trim down the file so that we only loop from the start of the file to the last line that has a valid email address.
-            //var splitData = TrimFile(stringData);
-            //if(splitData == undefined){
+            var splitData = TrimFile(stringData);
+            if(splitData == undefined){
                 var lastAtPos = stringData.lastIndexOf('@');
                 var lastReturnPos = stringData.indexOf('\r', lastAtPos);
                 var splitData = stringData.substring(0, lastReturnPos).split("\r"); // Split the data at the \r char but only for the piece of the string that contains @ symbols.
-            //} 
+            } 
+
+            
 
 
             
@@ -129,7 +135,39 @@ try{
 ExportArray(Addresses); // Export the content of the Addresses[] array to a text file.
 
 function extractEmail(string){
-    try{
+    if(string != undefined){
+        stringLower = string.toLowerCase();
+        var splitData =  stringLower.split('@');
+        if(splitData.length == 1) {
+            return;
+        }else{
+            var postfix = splitData[splitData.length-1];
+            var prefix = splitData[splitData.length-2];
+        }
+    
+    
+        var spacePos = prefix.lastIndexOf(' ');
+        var emailStart = prefix.slice(spacePos + 1);
+    
+        var emailAddress = emailStart + '@' + postfix;
+        var validUUID = validUUIDTest.test(prefix);                    // Test to see if the first part of the email is a UUID.
+        var validEmail = validEmailTest.test(String(emailAddress).toLowerCase()); // Test to see if the email address is a valid one.
+        var EmailWithoutNumbers = prefix.replace(/[0-9]+/g,'');
+        if(validEmail && !validUUID){
+            var OmitAddress = OmitAddressYN(prefix); // Run to see if the email address contains any values we want to omit.
+        }else{
+            var OmitAddress = false; // Default value
+        }
+    
+        if (validEmail && !validUUID && (EmailWithoutNumbers.length + 3 >= prefix.length) && !OmitAddress) {
+            return emailAddress; // If the email is a valid email and is not a UUID then return the address.
+        }
+        else{
+            return;     // Error validating email.
+        }    
+    }
+   /* // This was my original attempt at making this detect email.
+   try{
         string = string.toString().toLowerCase();                           // Convert the parameter to lowercase and string.
         var emailStartPos = string.indexOf('<') + 1                         // Find the first position of the '<' character
         var emailEndPos =   string.indexOf('>', emailStartPos);             // Find the first position of the '>' character starting from 'emailStartPos'
@@ -139,7 +177,11 @@ function extractEmail(string){
         var validUUID = validUUIDTest.test(emailPrefix);                    // Test to see if the first part of the email is a UUID.
         var validEmail = validEmailTest.test(String(emailAddress).toLowerCase()); // Test to see if the email address is a valid one.
         var EmailWithoutNumbers = emailPrefix.replace(/[0-9]+/g,'');
-        var OmitAddress = OmitAddressYN(emailPrefix);
+        if(validEmail && !validUUID){
+            var OmitAddress = OmitAddressYN(emailPrefix); // Run to see if the email address contains any values we want to omit.
+        }else{
+            var OmitAddress = false; // Default value
+        }
 
         if (validEmail && !validUUID && (EmailWithoutNumbers.length + 3 >= emailPrefix.length) && !OmitAddress) {
             return emailAddress; // If the email is a valid email and is not a UUID then return the address.
@@ -150,6 +192,7 @@ function extractEmail(string){
     }catch{
         return;         // Error extracting email.
     }
+    */
 }
 
 function ExportArray(array){
@@ -188,7 +231,7 @@ function TrimFile(data){ // Function to trim the tail end off of large files.
     try{
         var lastAtPos = data.lastIndexOf('@');              // Find the position of the last @ symbol.
         var lastReturnPos = data.indexOf('\r', lastAtPos);  // The position of the next closest \r after the last @ symbol
-        if (lastReturnPos < lastAtPos){ 
+        if (lastReturnPos < lastAtPos && lastAtPos != -1){ 
             var splitData = data.split("\r"); // If there was no \r after that then we need can just split it 
         }else{
             var splitData = data.substring(0, lastReturnPos).split("\r"); // Otherwise split it but only for the part of the string we want.
@@ -205,10 +248,7 @@ function TrimFile(data){ // Function to trim the tail end off of large files.
             return splitData; //Returns the result to 'result'
         }
     }catch(e){
-        console.error('Error trimming file.\n' + e)
-        console.groupCollapsed('data = ' + data);
-        console.groupCollapsed('splitData = ' + splitData);
-        console.groupCollapsed('result = ' + result);
+        console.error('Error trimming file.\n' + e);
         return;
     }
 }
