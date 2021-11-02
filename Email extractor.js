@@ -24,6 +24,9 @@ var startTimestamp = new Date(); // Current time, log this so that we can report
 //Reg-Ex:
 const validEmailTest = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/; // Email REGEX
 const validUUIDTest = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i; // UUID REGEX
+const illegalChars = /[<>#+=\/±§\(\):]/g; // Illegal email chars
+
+
 
 const username = os.userInfo().username; // Get the username of the user who is logged in, this way it will target their outlook folder.
 
@@ -44,7 +47,7 @@ var totalFolderCount = folders.length;  // The total number of folders that need
 var folderCount = 0;                    // The current folder being worked on.
 var totalLineCount = 0;
 
-try{
+//try{
     folders.forEach(folderName => {
         var folderPath = parentPath + folderName + '/';
         folderCount++;
@@ -76,12 +79,13 @@ try{
             var stringData = fileData.toString();
             var lineCount = 0;
 
-            if(fileName == '002E8B72-CFEF-4D4D-AEDC-88B3634792FD.olk15MsgSource'){
-                console.log('error?');
-            }
-
             // Creating recursive function to trim down the file so that we only loop from the start of the file to the last line that has a valid email address.
-            var splitData = TrimFile(stringData);
+            try{
+                var splitData = TrimFile(stringData);
+            }catch(e){
+                throw new Error(e);
+            }
+            
             if(splitData == undefined){
                 var lastAtPos = stringData.lastIndexOf('@');
                 var lastReturnPos = stringData.indexOf('\r', lastAtPos);
@@ -101,8 +105,9 @@ try{
                             emailAddress = extractEmail(dataItem);
                             if(emailAddress != undefined){
                                 try{
+                                    var lengBefore = Addresses.length;
                                     Addresses.push(emailAddress); // Add the email address to the Addresses[] array
-                                    Addresses = DeDupeArray(Addresses); // Deduplicate and sort the Addresses[] array
+                                    if(Addresses.length > lengBefore) Addresses = DeDupeArray(Addresses); // Deduplicate and sort the Addresses[] array
                                     if((Addresses.length % 250) === 0){ // If multiple of 250
                                         ExportArray(Addresses); // Export the email addresses gathered to the text file.
                                     }
@@ -128,44 +133,69 @@ try{
         console.groupEnd();
 
     });
-} catch(e){
-    console.error('There was an error reading the files.\n' + e ); // Catch it incase it stops for any reason.
-}
+//} catch(e){
+//    console.error('There was an error reading the files.(' + e + ')' ); // Catch it incase it stops for any reason.
+//}
 
 ExportArray(Addresses); // Export the content of the Addresses[] array to a text file.
 
 function extractEmail(string){
-    if(string != undefined){
-        stringLower = string.toLowerCase();
-        var splitData =  stringLower.split('@');
-        if(splitData.length == 1) {
-            return;
-        }else{
-            var postfix = splitData[splitData.length-1];
-            var prefix = splitData[splitData.length-2];
+    try{
+        if(string != undefined){
+            stringLower = string.toLowerCase(); // Convert everything to lowercase
+    
+            var splitData =  stringLower.split('@'); // Split the array at the @ symbol
+            if (splitData.length === 1) return; // Return if the array is too small for us to work with.
+        
+            var postfixArrayItem = splitData[splitData.length-1]; // Get the domain part of the email.
+            var postfixSpacePos = postfixArrayItem.indexOf(' '); // Find the first space character after the domain.
+            if (postfixSpacePos <= 0) postfixSpacePos = postfixArrayItem.length; // If the first space character doesn't exist then we need the whole array item.
+            var postfix = postfixArrayItem.substring(0, postfixSpacePos); // Get the domain part as a sub string
+        
+            var prefixArrayItem = splitData[splitData.length-2]; // Find the first part of the email address before the @
+            if(prefixArrayItem.length == 0 || postfixArrayItem.length == 0){
+                return; // If either the first or second part of the email has a length of 0 the email won't be valid. Return.
+            }
+            var spacePos = prefixArrayItem.lastIndexOf(' '); // Find the last space character before the email prefix.
+            var emailStart = prefixArrayItem.slice(spacePos + 1); // Get that the email prefix.
+            
+            var emailAddress = emailStart.replace(illegalChars, ' ') + '@' + postfix.replace(illegalChars, ' '); // Replace any illegal chars with ' ' and put the @ symbol back
+        
+            var validEmail = validEmailTest.test(emailAddress);
+            var validUUID = validUUIDTest.test(emailStart);                    // Test to see if the first part of the email is a UUID.
+            var EmailWithoutNumbers = emailStart.replace(/[0-9]+/g,'');
+    
+            if(validEmail && !validUUID){
+                var OmitAddress = OmitAddressYN(emailStart); // Run to see if the email address contains any values we want to omit.
+            }else{
+                var OmitAddress = false; // Default value
+            }
+    
+            if(EmailWithoutNumbers.length + 3 >= emailStart.length){
+                var containsNumbers = false;
+            }else{
+                var containsNumbers = true;
+            }
+    
+            if(validEmail){ // Check if valid.
+                if(!containsNumbers && !validUUID && !OmitAddress){
+                    return emailAddress; // Valid email, return it
+                }else{
+                    return; // Not valid return nothing
+                }
+            }else{
+                if(emailAddress != undefined && !containsNumbers && !validUUID && !OmitAddress){ // If not valid and the email address isn't blank
+                    var result = extractEmail(emailAddress); // Call this function again with the email address to see if we can extract it.
+                    return result; // Return the result.
+                }else{
+                    return; // Error, return blank result.
+                }
+            }
         }
-    
-    
-        var spacePos = prefix.lastIndexOf(' ');
-        var emailStart = prefix.slice(spacePos + 1);
-    
-        var emailAddress = emailStart + '@' + postfix;
-        var validUUID = validUUIDTest.test(prefix);                    // Test to see if the first part of the email is a UUID.
-        var validEmail = validEmailTest.test(String(emailAddress).toLowerCase()); // Test to see if the email address is a valid one.
-        var EmailWithoutNumbers = prefix.replace(/[0-9]+/g,'');
-        if(validEmail && !validUUID){
-            var OmitAddress = OmitAddressYN(prefix); // Run to see if the email address contains any values we want to omit.
-        }else{
-            var OmitAddress = false; // Default value
-        }
-    
-        if (validEmail && !validUUID && (EmailWithoutNumbers.length + 3 >= prefix.length) && !OmitAddress) {
-            return emailAddress; // If the email is a valid email and is not a UUID then return the address.
-        }
-        else{
-            return;     // Error validating email.
-        }    
+    }catch(e){
+
     }
+    
    /* // This was my original attempt at making this detect email.
    try{
         string = string.toString().toLowerCase();                           // Convert the parameter to lowercase and string.
@@ -176,7 +206,7 @@ function extractEmail(string){
         var emailPrefix = splitEmail[0];
         var validUUID = validUUIDTest.test(emailPrefix);                    // Test to see if the first part of the email is a UUID.
         var validEmail = validEmailTest.test(String(emailAddress).toLowerCase()); // Test to see if the email address is a valid one.
-        var EmailWithoutNumbers = emailPrefix.replace(/[0-9]+/g,'');
+        
         if(validEmail && !validUUID){
             var OmitAddress = OmitAddressYN(emailPrefix); // Run to see if the email address contains any values we want to omit.
         }else{
