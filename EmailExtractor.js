@@ -2,9 +2,10 @@
 
 /* 
  Did some research and found:
-      • Outlook email messages are stored in: "/Users/bradleygallavin/Library/Group\ Containers/UBF8T346G9.Office/Outlook/Outlook\ 15\ Profiles/Main\ Profile/Data/Message\ Sources/0"
+      • Outlook email messages are stored in: "/Users/<<USERNAME>>/Library/Group\ Containers/UBF8T346G9.Office/Outlook/Outlook\ 15\ Profiles/Main\ Profile/Data/Message\ Sources/0"
       • These are easier to read as they are plain text and are more uniform than the OLM file you can export from Outlook.
 */
+
 // Dependancies
 const { Console, error } = require('console');
 const fs = require('fs');
@@ -13,6 +14,7 @@ const chalk = require('chalk');
 
 // Arrays
 const OmittedAddresses = ['noreply', 'no_reply', 'donotreply', 'no-reply', 'support', 'newsletter', 'accounts', 'notifications'] // Array of strings that we want to omit from the list of addresses.
+const OmittedChars = ['!', '%', '!', '#', '$', '%', '\\', '\'', '*', '/', '=', '?', '^', '`', '{', '|', '}', '~'];
 var Addresses = Array(); // Array to store the email addresses that are detected.
 
 // Start time
@@ -72,11 +74,11 @@ try{
             var stringData = fileData.toString();
             var lineCount = 0;
 
-            /* try{ // Creating recursive function to trim down the file so that we only loop from the start of the file to the last line that has a valid email address.
+            /*try{ // Creating recursive function to trim down the file so that we only loop from the start of the file to the last line that has a valid email address.
                 var splitData = TrimFile(stringData);
             }catch(e){
                 throw new Error(e);
-            } */
+            }*/
 
             if(splitData == undefined){
                 var lastAtPos = stringData.lastIndexOf('@');
@@ -138,7 +140,7 @@ function extractEmail(string){
         var emailAddress =  string.substring(emailStartPos, emailEndPos);   // Get a substring, starting from 'emailStartPos' and ending at 'emailEndPos'
         var splitEmail = emailAddress.split('@');
         var emailPrefix = splitEmail[0];
-        if (emailPrefix == undefined) return;                               // Return if there's no prefix as the email address cannot possibly be valid.
+        if (emailPrefix === undefined) return;                               // Return if there's no prefix as the email address cannot possibly be valid.
         var validUUID = validUUIDTest.test(emailPrefix);                    // Test to see if the first part of the email is a UUID.
         var validEmail = validEmailTest.test(String(emailAddress).toLowerCase()); // Test to see if the email address is a valid one.
         var EmailWithoutNumbers = emailPrefix.replace(/[0-9]+/g,'');
@@ -165,24 +167,34 @@ function ExportArray(array){
     try{
         var exportPath = '/Users/'+ username +'/Desktop/' + 'EmailAddresses.txt';  // User's desktop path to export 'EmailAddresses.txt'
         var arrayString = array.join('\n'); // New string that has the entire array seperated by ¶
-        fs.writeFileSync( exportPath, arrayString); // Export the contents of 'arrayString'
+        fs.writeFileSync(exportPath, arrayString); // Export the contents of 'arrayString'
         return true;
     }
     catch{
         throw new Error('Error exporting emails to text file.'); 
-        return;
     }
     
 }
 
 function OmitAddressYN(emailPrefix){
-    OmittedAddresses.forEach( prefix => { 
+    var omit = false; // Result of the function
+    OmittedAddresses.forEach( prefix => { // Filter through and remove any emails that are 'noreply', 'accounts' etc....
         var containsPrefix = emailPrefix.includes(prefix);
         if(containsPrefix){
-            return true;
+            omit = true;
+            return; // Exit loop
         }
     });
-    return false;
+
+    OmittedChars.forEach( char =>{ // Filter through and remove any emails unwanted characters
+        var containsChar = emailPrefix.includes(char);
+        if(containsChar){
+            omit = true;
+            return; // Exit loop
+        }
+    });
+    
+    return omit;
 }
 
 function DeDupeArray(array){
