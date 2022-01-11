@@ -12,9 +12,10 @@ const fs = require('fs');
 const os = require('os');
 const chalk = require('chalk');
 
+
 // Arrays
-const OmittedAddresses = ['noreply', 'no_reply', 'donotreply', 'no-reply', 'support', 'newsletter', 'accounts', 'notifications'] // Array of strings that we want to omit from the list of addresses.
-const OmittedChars = ['!', '%', '!', '#', '$', '%', '\\', '\'', '*', '/', '=', '?', '^', '`', '{', '|', '}', '~'];
+const OmittedAddresses = ['noreply', 'no_reply', 'donotreply', 'no-reply', 'support', 'newsletter', 'accounts', 'notifications', 'newsletter', 'no.reply'] // Array of strings that we want to omit from the list of addresses.
+const OmittedChars = ['%', '!', '#', '$', '%', '\\', '\'', '*', '/', '=', '?', '^', '`', '{', '|', '}', '~'];
 var Addresses = Array(); // Array to store the email addresses that are detected.
 
 // Start time
@@ -25,6 +26,7 @@ const validEmailTest = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+
 const validUUIDTest = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i; // UUID REGEX
 const illegalChars = /[<>#+=\/±§\(\):]/g; // Illegal email chars
 
+const sortArray = false; // Change to TRUE if you want the resulting file to be sorted alphabetically.
 const username = os.userInfo().username; // Get the username of the user who is logged in, this way it will target their outlook folder.
 var parentPath = '/Users/'+ username +'/Library/Group\ Containers/UBF8T346G9.Office/Outlook/Outlook\ 15\ Profiles/Main\ Profile/Data/Message\ Sources/' // Store the path of the folder that holds all of the email messages.
 
@@ -41,6 +43,7 @@ folders = DeDupeArray(folders); //Sort the array.
 var totalFolderCount = folders.length; // The total number of folders that need to be searched through.
 var folderCount = 0; // The current folder being worked on.
 var totalFileCount = 0; // Total number of files that the application has worked through so far.
+var LastExportedLength; // The length of the array at the time we last exported it.
 
 try{
     folders.forEach(folderName => {
@@ -58,11 +61,12 @@ try{
         elapsedTimeFormatted = elapsedTime.toLocaleTimeString();
         
         console.clear();
-        console.groupCollapsed(chalk.green('Progress    ' + Math.round(folderPercentage) +'%' + '    |     Address count      ' + Addresses.length + '   |   Time elapsed       ' + elapsedTimeFormatted + '    |   Emails scanned     ' + totalFileCount ));
+        console.log(OmittedAddresses);
+        console.groupCollapsed(chalk.bold.green('Progress    ' + Math.round(folderPercentage) +'%' + '    |     Address count      ' + Addresses.length + '   |   Time elapsed       ' + elapsedTimeFormatted + '    |   Emails scanned     ' + totalFileCount ));
         console.group('Folder   ' + folderName + ' (' + files.length + ' files)');
 
         files.forEach(fileName => {
-            
+            var skipEmail = false; 
             var AddressBefore = Addresses.length;
             console.group('File    ' + fileName);
         
@@ -88,27 +92,32 @@ try{
 
             if(splitData != undefined){
                 splitData.forEach(dataItem => {
-                    //IF the current line includes: "To", "CC", "BCC", "From", or "<" and ">" then check if we've got an email on that line.
-                    if (dataItem.includes('To:') || dataItem.includes('CC:') || dataItem.includes('BCC:') || dataItem.includes('From:') || (dataItem.includes('<') && dataItem.includes('>'))) {
-                        if (dataItem.includes('@')) {
-                            emailAddress = extractEmail(dataItem);
-                            if((Addresses.length % 250) === 0){ // If multiple of 250
-                                var result = ExportArray(Addresses); // Export the email addresses gathered to the text file.
-                                if(result) console.log(chalk.green('Exported ' + Addresses.length + ' to \'EmailAddresses.txt\' on your desktop.'));
-                            }
-                            if(emailAddress != undefined){
-                                try{
-                                    var lengBefore = Addresses.length;
-                                    Addresses.push(emailAddress); // Add the email address to the Addresses[] array
-                                    if(Addresses.length > lengBefore) Addresses = DeDupeArray(Addresses); // Deduplicate and sort the Addresses[] array
-                                    if((Addresses.length % 250) === 0){ // If multiple of 250
-                                        var result = ExportArray(Addresses); // Export the email addresses gathered to the text file.
-                                        if(result) console.log(chalk.green('Exported ' + Addresses.length + ' to \'EmailAddresses.txt\' on your desktop.'));
+                    if(dataItem.includes('> Begin forwarded message:') || dataItem.includes('-----Original Message-----') || dataItem.substring(0, 1)  == '> ' || dataItem.includes('X-Spam-Status: Yes') || skipEmail){ 
+                        skipEmail = true; // Email is forwarded and we shouldn't collect the email address.
+                        return;
+                    }
+                    else if(!skipEmail){
+                        //IF the current line includes: "To", "CC", "BCC", "From", or "<" and ">" then check if we've got an email on that line.
+                        if (dataItem.includes('To:') || dataItem.includes('CC:') || dataItem.includes('BCC:') || dataItem.includes('From:') || (dataItem.includes('<') && dataItem.includes('>'))) {
+                            if (dataItem.includes('@')) {
+                                emailAddress = extractEmail(dataItem);
+                                if(emailAddress != undefined){
+                                    try{
+                                        var lengBefore = Addresses.length;
+                                        Addresses.push(emailAddress); // Add the email address to the Addresses[] array
+                                        if(Addresses.length > lengBefore) Addresses = DeDupeArray(Addresses); // Deduplicate and sort the Addresses[] array
+                                        if((Addresses.length % 250) === 0 && LastExportedLength != Addresses.length){ // If multiple of 250
+                                            var result = ExportArray(Addresses); // Export the email addresses gathered to the text file.
+                                            if(result){
+                                                console.log(chalk.green('Exported ' + Addresses.length + ' to \'EmailAddresses.txt\' on your desktop.'));
+                                                LastExportedLength = Addresses.length;
+                                            }
+                                        }
+                                    }catch(e){
+                                        console.error(e); // Error
                                     }
-                                }catch(e){
-                                    console.error(e); // Error
-                                }
-                            }                            
+                                }                            
+                            }
                         }
                     }
                     lineCount++; // Increment the counter
@@ -178,46 +187,59 @@ function ExportArray(array){
 
 function OmitAddressYN(emailPrefix){
     var omit = false; // Result of the function
+
+    //AddressPrefixLoop: 
     OmittedAddresses.forEach( prefix => { // Filter through and remove any emails that are 'noreply', 'accounts' etc....
         var containsPrefix = emailPrefix.includes(prefix);
         if(containsPrefix){
             omit = true;
-            return; // Exit loop
+            //break; //AddressPrefixLoop; // Exit loop
         }
     });
-
+    
+    //CharacterContainsLoop: 
     OmittedChars.forEach( char =>{ // Filter through and remove any emails unwanted characters
         var containsChar = emailPrefix.includes(char);
         if(containsChar){
             omit = true;
-            return; // Exit loop
+            //break; // Exit loop
         }
     });
-    
     return omit;
 }
 
 function DeDupeArray(array){
     try{
         let deDuplicated = [...new Set(array)];
-        return deDuplicated.sort();
+        if(sortArray)
+            var sortedArray = deDuplicated.sort();
+        return deDuplicated;
     }catch{
         console.error('Error deduplicating array.');
     }
 }
 
 function TrimFile(data){ // Function to trim the tail end off of large files.
+
     var lastAtPos = data.lastIndexOf('@'); // Find the position of the last @ symbol.
+    if(lastAtPos === -1 || data.length === 0) return data; // Return, there can't possibly be an email without an @ symbol.
     var lastReturnPos = data.indexOf('\r', lastAtPos); // The position of the next closest \r after the last @ symbol
-    if (lastReturnPos < lastAtPos && lastAtPos != -1){ 
-        var splitData = data.split("\r"); // If there was no \r after that then we need can just split it 
+    if (lastReturnPos < lastAtPos && lastAtPos != -1){ // If the @ is after the ¶ or the @ pos is -1 then we have an error.
+        
+        if(lastReturnPos != -1) // if we have a return, use the position of that to split the data
+            var splitPos = lastReturnPos;
+        else
+            var splitPos = data.length; // Otherwise just get the whole thing.
+
+        var splitData = data.substring(0, splitPos).split('\r');
+        return splitData;
     }else{
         var splitData = data.substring(0, lastReturnPos).split("\r"); // Otherwise split it but only for the part of the string we want.
     }
 
     var lastItem = splitData[splitData.length - 1]; // Get the last item in the array
     var email = extractEmail(lastItem); // Check if it contains an email address
-    if(email === undefined && !validEmailTest.test(email)){ 
+    if(email === undefined || !validEmailTest.test(email)){ 
         splitData.pop(); // If it doesn't then remove the last item in the array
         data = splitData.join('\r'); // Rejoin the data.
         var result = TrimFile(data); // Run the process again on the now smaller string.
